@@ -142,6 +142,15 @@ export type TimelineSettings = {
   leftOffset?: number;
   loopRegion?: boolean;
   autoPlayNewSegments?: boolean;
+
+  spectrogramFftSamples?: number;
+  spectrogramWindowingFunction?: 'hanning' | 'hamming' | 'blackman' | 'sine';
+  spectrogramColorScheme?: string;
+  numberOfMelBands?: number;
+  spectrogramMinDb?: number;
+  spectrogramMaxDb?: number;
+  spectrogramVisible?: boolean;
+  spectrogramScale?: 'linear' | 'log' | 'mel';
 };
 
 export type TimelineStepFunction = (
@@ -199,6 +208,10 @@ export interface TimelineControlsProps {
   onSpeedChange?: TimelineProps["onSpeedChange"];
   onZoom?: TimelineProps["onZoom"];
   onAmpChange?: (amp: number) => void;
+  onSpectrogramFftSamplesChange?: (samples: number) => void;
+  onNumberOfMelBandsChange?: (bands: number) => void;
+  onSpectrogramWindowingFunctionChange?: (windowFunction: string) => void;
+  onSpectrogramColorSchemeChange?: (colorScheme: string) => void;
   toggleVisibility?: (layerName: string, isVisible: boolean) => void;
 }
 

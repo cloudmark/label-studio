@@ -30,7 +30,7 @@ export class ComputeWorker {
       };
 
       const precompute = (data: any) => {
-        precomputeCallback?.(data, storage, (result) => {
+        precomputeCallback?.(data, storage, result => {
           Object.assign(storage, result);
         });
       };
@@ -42,7 +42,7 @@ export class ComputeWorker {
         });
       };
 
-      self.addEventListener("message", (e) => {
+      self.addEventListener("message", e => {
         if (!e.data) return;
 
         const { data, type, eventId } = e.data;

@@ -14,6 +14,8 @@ import type { Padding } from "./Common/Style";
 import { clamp, getCursorTime } from "./Common/Utils";
 import type { PlayheadOptions } from "./Visual/PlayHead";
 import type { Layer } from "./Visual/Layer";
+import { SpectrogramScale } from "./Analysis/FFTProcessor";
+
 
 export interface WaveformOptions {
   /** URL of an audio or video */
@@ -189,7 +191,7 @@ interface WaveformEventTypes extends RegionsGlobalEvents, RegionGlobalEvents {
 export class Waveform extends Events<WaveformEventTypes> {
   private src: string;
   private media!: MediaLoader;
-  private visualizer!: Visualizer;
+  public visualizer!: Visualizer;
   private timeline!: Timeline;
   private focusTimeout: any = null;
 
@@ -276,9 +278,6 @@ export class Waveform extends Events<WaveformEventTypes> {
     if (this.isDestroyed) return;
 
     const loader = this.media.load({
-      muted: this.params.muted ?? false,
-      volume: this.params.volume ?? 1,
-      rate: this.params.rate ?? 1,
     });
 
     // Draw the timeline as soon as possible
@@ -523,15 +522,13 @@ export class Waveform extends Events<WaveformEventTypes> {
     } else {
       this.player.seekSilent(value);
     }
+    // Always sync the cursor after setting time
+    this.syncCursor();
   }
 
   /**
    * Waveform amplification factor
    */
-  get amp() {
-    return this.visualizer.getAmp();
-  }
-
   set amp(value: number) {
     this.visualizer.setAmp(value);
   }
@@ -550,9 +547,6 @@ export class Waveform extends Events<WaveformEventTypes> {
     return this.media.sampleRate;
   }
 
-  get isDrawing() {
-    return this.visualizer.isDrawing;
-  }
   /**
    * Initialize events
    */
@@ -560,6 +554,8 @@ export class Waveform extends Events<WaveformEventTypes> {
     this.cursor.on("mouseMove", this.handleCursorMove);
     this.visualizer.on("layersUpdated", () => this.invoke("layersUpdated", [this.getLayers()]));
     this.visualizer.on("draw", () => this.handleDrawn());
+    // Sync cursor on every playback frame
+    this.on("playing", () => this.syncCursor());
   }
 
   private handleDrawn = () => {

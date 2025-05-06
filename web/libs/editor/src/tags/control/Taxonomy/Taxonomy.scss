@@ -82,3 +82,7 @@ body :global(.ant-select-multiple .ant-select-selection-item-remove) {
 body :global(.ant-select-arrow) {
   color: var(--color-neutral-icon);
 }
+
+body :global(.ant-select-single .ant-select-selection-item) {
+  color: var(--color-neutral-content);
+}

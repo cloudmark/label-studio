@@ -1,6 +1,6 @@
-import { clamp, OFFSCREEN_CANVAS_SUPPORTED } from "../Common/Utils";
-import { Events } from "../Common/Events";
-import type { LayerGroup } from "./LayerGroup";
+import {clamp, OFFSCREEN_CANVAS_SUPPORTED} from "../Common/Utils";
+import {Events} from "../Common/Events";
+import type {LayerGroup} from "./LayerGroup";
 
 export type CanvasCompositeOperation =
   | "source-over"
@@ -110,7 +110,7 @@ export class Layer extends Events<LayerEvents> {
   }
 
   get height() {
-    return this.isVisible ? this.canvas.height : 0;
+    return this.canvas.height;
   }
 
   set height(value: number) {
@@ -147,10 +147,18 @@ export class Layer extends Events<LayerEvents> {
   setVisibility(visibility: boolean) {
     this.isVisible = visibility;
     if (visibility) {
+      const width = this.container.clientWidth;
+      const height = this.options.height ?? this.container.clientHeight ?? 100;
+      this.setSize(width, height);
+      if (this.canvas instanceof HTMLCanvasElement) {
+        this.canvas.style.visibility = 'visible';
+      }
       this.context.resetTransform();
     } else {
-      this.clear();
-      this.context.setTransform(0, 0, 0, 0, 0, 0);
+      if (this.canvas instanceof HTMLCanvasElement) {
+        this.canvas.style.visibility = 'hidden';
+      }
+      // Do not clear or reset the canvas when hiding
     }
     this.save();
     this.invoke("layerUpdated", [this]);
@@ -224,7 +232,7 @@ export class Layer extends Events<LayerEvents> {
   }
 
   measureText(text: string) {
-    if (!this.context) return { width: 0 };
+    if (!this.context) return {width: 0};
 
     const data = this.context.measureText(text);
 
@@ -263,11 +271,15 @@ export class Layer extends Events<LayerEvents> {
 
   copyToBuffer() {
     this.createBufferCanvas();
-
-    // Copy the current canvas to the buffer
-    this._bufferContext.imageSmoothingEnabled = false;
-    this._bufferContext.clearRect(0, 0, this._bufferCanvas.width, this._bufferCanvas.height);
-    this._bufferContext.drawImage(this.canvas, 0, 0);
+    if (this.width === 0 || this.height === 0) return;
+    try {
+      // Copy the current canvas to the buffer
+      this._bufferContext.imageSmoothingEnabled = false;
+      this._bufferContext.clearRect(0, 0, this._bufferCanvas.width, this._bufferCanvas.height);
+      this._bufferContext.drawImage(this.canvas, 0, 0);
+    } catch (e) {
+      throw e;
+    }
   }
 
   restoreFromBuffer(x = 0, y = 0) {
@@ -337,6 +349,8 @@ export class Layer extends Events<LayerEvents> {
     if (this.canvas instanceof HTMLCanvasElement) {
       this.canvas.remove();
     }
+    this._bufferCanvas = undefined as unknown as HTMLCanvasElement | OffscreenCanvas;
+    this._bufferContext = undefined as unknown as RenderingContext;
   }
 
   appendTo(container: HTMLElement) {
@@ -346,36 +360,36 @@ export class Layer extends Events<LayerEvents> {
     }
   }
 
-  transferTo(targetCanvas: Layer | HTMLCanvasElement) {
+  transferTo(targetCanvas: Layer | HTMLCanvasElement, x: number = 0, y: number = 0) {
     try {
       if (!this.canvas) return;
-
+      if (this.width === 0 || this.height === 0) return;
       let context: RenderingContext | null;
-
       let targetOpacity = 1;
-
       if (targetCanvas instanceof Layer) {
         context = targetCanvas.context;
         targetOpacity = targetCanvas.opacity;
       } else {
         context = targetCanvas.getContext("2d");
       }
-
       if (!context) return;
-
       if (this.compositeAsGroup) {
         context.globalAlpha = this.opacity;
       }
-
       if (this.height > 0 && this.width > 0) {
-        context.drawImage(this.canvas, 0, 0, this.width, this.height);
+        try {
+          context.drawImage(this.canvas, x * this.pixelRatio, y * this.pixelRatio, this.width, this.height);
+        } catch (e) {
+          console.error(`[Layer.transferTo] Error:`, e, `Layer: ${this.name}, size: ${this.width}x${this.height}, target: ${targetCanvas instanceof Layer ? targetCanvas.name : 'HTMLCanvasElement'}`);
+          throw e;
+        }
       }
-
       if (this.compositeAsGroup) {
         context.globalAlpha = targetOpacity;
       }
     } catch (e) {
-      console.error(e);
+      console.error(`[Layer.transferTo] Outer Error:`, e, `Layer: ${this.name}, size: ${this.width}x${this.height}`);
+      throw e;
     }
   }
 
@@ -405,14 +419,14 @@ export class Layer extends Events<LayerEvents> {
 
   private createVisibleCanvas() {
     const canvas = document.createElement("canvas");
-    const { pixelRatio } = this;
+    const {pixelRatio} = this;
 
     const width = this.container.clientWidth;
     const height = this.options.height ?? 100;
 
     canvas.id = `waveform-layer-${this.options.name ?? "default"}`;
     canvas.width = width * pixelRatio;
-    canvas.height = this.isVisible ? height * pixelRatio : 0;
+    canvas.height = height * pixelRatio;
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     canvas.style.visibility = this.isVisible ? "visible" : "hidden";
@@ -430,14 +444,14 @@ export class Layer extends Events<LayerEvents> {
     let canvas: HTMLCanvasElement | OffscreenCanvas;
 
     if (OFFSCREEN_CANVAS_SUPPORTED && !USE_FALLBACK) {
-      const { pixelRatio } = this;
+      const {pixelRatio} = this;
       const width = this.container.clientWidth;
       const height = this.options.height ?? 100;
 
       // For better performance we're using experimental
       // OffscreenCanvas as a rendering backend
       canvas = new OffscreenCanvas(width * pixelRatio, height * pixelRatio);
-
+      // Note: OffscreenCanvas does not support style or DOM events
       this._context = canvas.getContext("2d")!;
 
       const globalAlpha = this.compositeAsGroup ? clamp(this.opacity * 1.5, 0, 1) : this.opacity;
@@ -447,7 +461,6 @@ export class Layer extends Events<LayerEvents> {
       this._context.imageSmoothingEnabled = false;
     } else {
       canvas = this.createVisibleCanvas();
-
       Object.assign(canvas.style, {
         right: "100%",
         bottom: "100%",
@@ -466,7 +479,7 @@ export class Layer extends Events<LayerEvents> {
     let canvas: HTMLCanvasElement | OffscreenCanvas;
 
     if (OFFSCREEN_CANVAS_SUPPORTED && !USE_FALLBACK) {
-      const { pixelRatio } = this;
+      const {pixelRatio} = this;
 
       // Base this on the existing canvas size
       // Otherwise we will get possibly a missing portion of buffer content

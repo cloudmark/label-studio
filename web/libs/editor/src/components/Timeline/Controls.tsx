@@ -25,7 +25,7 @@ import "./Controls.scss";
 import * as SideControls from "./SideControls";
 import type {
   TimelineControlsFormatterOptions,
-  TimelineControlsProps,
+  TimelineControlsProps as TimelineControlsPropsDefinition,
   TimelineControlsStepHandler,
   TimelineCustomControls,
   TimelineProps,
@@ -35,6 +35,24 @@ import { FF_DEV_2715, isFF } from "../../utils/feature-flags";
 import { AudioControl } from "./Controls/AudioControl";
 import { ConfigControl } from "./Controls/ConfigControl";
 import { TimeDurationControl } from "../TimeDurationControl/TimeDurationControl";
+
+interface TimelineControlsProps extends TimelineControlsPropsDefinition {
+  spectrogramFftSamples?: number;
+  numberOfMelBands?: number;
+  spectrogramWindowingFunction?: string;
+  spectrogramColorScheme?: string;
+  spectrogramScale?: any;
+  spectrogramMinDb?: number;
+  spectrogramMaxDb?: number;
+  onSpectrogramFftSamplesChange?: (samples: number) => void;
+  onNumberOfMelBandsChange?: (bands: number) => void;
+  onSpectrogramWindowingFunctionChange?: (windowFunction: string) => void;
+  onSpectrogramColorSchemeChange?: (colorScheme: string) => void;
+  onSpectrogramScaleChange?: (scale: any) => void;
+  onSpectrogramDbRangeChange?: (minDb: number, maxDb: number) => void;
+  onAmpChange?: (amp: number) => void;
+  onZoom?: (zoom: number) => void;
+}
 
 const positionFromTime = ({ time, fps }: TimelineControlsFormatterOptions) => {
   const roundedFps = Math.round(fps).toString();
@@ -73,6 +91,21 @@ export const Controls: FC<TimelineControlsProps> = memo(
     toggleVisibility,
     layerVisibility,
     mediaType,
+    spectrogramFftSamples,
+    numberOfMelBands,
+    spectrogramWindowingFunction,
+    spectrogramColorScheme,
+    spectrogramScale,
+    spectrogramMinDb,
+    spectrogramMaxDb,
+    onSpectrogramFftSamplesChange,
+    onNumberOfMelBandsChange,
+    onSpectrogramWindowingFunctionChange,
+    onSpectrogramColorSchemeChange,
+    onSpectrogramScaleChange,
+    onSpectrogramDbRangeChange,
+    onZoom,
+    onAmpChange,
     ...props
   }) => {
     const { settings } = useContext(TimelineContext);
@@ -111,6 +144,9 @@ export const Controls: FC<TimelineControlsProps> = memo(
 
       if (audioModal) setAudioModal(false);
 
+      if (!configModal && playing && onPause) {
+        onPause();
+      }
       setConfigModal(!configModal);
     };
 
@@ -119,13 +155,26 @@ export const Controls: FC<TimelineControlsProps> = memo(
         <Elem name="group" tag={Space} size="small" style={{ gridAutoColumns: "auto" }}>
           <ConfigControl
             onSetModal={onSetConfigModal}
-            onAmpChange={props.onAmpChange}
+            onAmpChange={onAmpChange ?? (() => {})}
+            onSpectrogramFftSamplesChange={onSpectrogramFftSamplesChange}
+            onNumberOfMelBandsChange={onNumberOfMelBandsChange}
+            onSpectrogramWindowingFunctionChange={onSpectrogramWindowingFunctionChange}
+            onSpectrogramColorSchemeChange={onSpectrogramColorSchemeChange}
+            onSpectrogramScaleChange={onSpectrogramScaleChange}
+            onSpectrogramDbRangeChange={onSpectrogramDbRangeChange}
             configModal={configModal}
             onSpeedChange={(speed: number) => onSpeedChange?.(speed)}
             speed={props.speed || 0}
             amp={props.amp || 0}
             toggleVisibility={toggleVisibility}
             layerVisibility={layerVisibility}
+            spectrogramFftSamples={spectrogramFftSamples}
+            numberOfMelBands={numberOfMelBands}
+            spectrogramWindowingFunction={spectrogramWindowingFunction}
+            spectrogramColorScheme={spectrogramColorScheme}
+            spectrogramScale={spectrogramScale}
+            spectrogramMinDb={spectrogramMinDb}
+            spectrogramMaxDb={spectrogramMaxDb}
           />
           <AudioControl
             volume={props.volume || 0}
@@ -210,7 +259,7 @@ export const Controls: FC<TimelineControlsProps> = memo(
                   {settings?.stepSize && !disableFrames && (
                     <ControlButton
                       onClick={stepHandlerWrapper(onStepBackward, settings.stepSize)}
-                      hotkey={settings?.stepAltBack}
+                      hotkey={settings?.stepAltBack as any}
                       disabled={startReached}
                     >
                       {<IconPrev />}
@@ -218,7 +267,7 @@ export const Controls: FC<TimelineControlsProps> = memo(
                   )}
                   <ControlButton
                     onClick={stepHandlerWrapper(onStepBackward)}
-                    hotkey={settings?.stepBackHotkey}
+                    hotkey={settings?.stepBackHotkey as any}
                     disabled={startReached}
                   >
                     <IconChevronLeft />
@@ -230,14 +279,14 @@ export const Controls: FC<TimelineControlsProps> = memo(
                   <ControlButton
                     onClick={() => onRewind?.()}
                     disabled={startReached}
-                    hotkey={settings?.skipToBeginning}
+                    hotkey={settings?.skipToBeginning as any}
                   >
                     <IconRewind />
                   </ControlButton>
                   <ControlButton
                     onClick={() => onRewind?.(altHopSize)}
                     disabled={startReached}
-                    hotkey={settings?.hopBackward}
+                    hotkey={settings?.hopBackward as any}
                   >
                     <IconBackward />
                   </ControlButton>
@@ -247,7 +296,7 @@ export const Controls: FC<TimelineControlsProps> = memo(
             <ControlButton
               data-testid={`playback-button:${playing ? "pause" : "play"}`}
               onClick={handlePlay}
-              hotkey={settings?.playpauseHotkey}
+              hotkey={settings?.playpauseHotkey as any}
               hotkeyScope={Hotkey.ALL_SCOPES}
             >
               {playing ? <IconTimelinePause /> : <IconTimelinePlay />}
@@ -258,17 +307,16 @@ export const Controls: FC<TimelineControlsProps> = memo(
                 <>
                   <ControlButton
                     onClick={stepHandlerWrapper(onStepForward)}
-                    hotkey={settings?.stepForwardHotkey}
+                    hotkey={settings?.stepForwardHotkey as any}
                     disabled={endReached}
                   >
                     <IconChevronRight />
-                    {}
                   </ControlButton>
                   {settings?.stepSize && !disableFrames && (
                     <ControlButton
                       disabled={endReached}
                       onClick={stepHandlerWrapper(onStepForward, settings.stepSize)}
-                      hotkey={settings?.stepAltForward}
+                      hotkey={settings?.stepAltForward as any}
                     >
                       <IconNext />
                     </ControlButton>
@@ -280,11 +328,11 @@ export const Controls: FC<TimelineControlsProps> = memo(
                   <ControlButton
                     onClick={() => onForward?.(altHopSize)}
                     disabled={endReached}
-                    hotkey={settings?.hopForward}
+                    hotkey={settings?.hopForward as any}
                   >
                     <IconForward />
                   </ControlButton>
-                  <ControlButton onClick={() => onForward?.()} disabled={endReached} hotkey={settings?.skipToEnd}>
+                  <ControlButton onClick={() => onForward?.()} disabled={endReached} hotkey={settings?.skipToEnd as any}>
                     <IconFastForward />
                   </ControlButton>
                 </>
@@ -318,6 +366,7 @@ export const Controls: FC<TimelineControlsProps> = memo(
                 endTimeReadonly={true}
                 currentTime={position}
                 onChangeStartTime={onTimeUpdateChange}
+                isSidepanel={false}
               />
             </>
           ) : (
