@@ -556,8 +556,7 @@ class TimeSeriesVisualizerD3 extends React.Component {
     this.renderPlayhead();
     this.updatePlayhead(this.props.cursorTime);
     this.updateTracker(0); // initial value, will be updated in setRangeWithScaling
-    this.renderYAxis();
-    this.setRangeWithScaling(range);
+    this.setRangeWithScaling(range); // This now handles y-axis rendering internally
     this.renderBrushCreator();
     this.initZoom();
 
@@ -796,9 +795,14 @@ class TimeSeriesVisualizerD3 extends React.Component {
       this.x.domain(timerange);
     }
 
+    // Process all channels first to calculate their individual domains
     for (const channelItem of this.props.channels) {
       this.setChannelRangeWithScaling(channelItem, range, { left, right, translate, scale });
     }
+    
+    // After all channels are processed, render axes once
+    this.renderXAxis();
+    this.renderYAxis();
   }
   setChannelRangeWithScaling(channelItem, range, { left, right, translate, scale }) {
     const column = channelItem.columnName;
@@ -827,30 +831,69 @@ class TimeSeriesVisualizerD3 extends React.Component {
       // array slice may slow it down, so just find a min-max by ourselves
       const { data, time } = this.props;
       const values = data[column];
-      // indices of the first and last displayed values
-      let i = d3.bisectRight(data[time], range[0]);
-      const j = d3.bisectRight(data[time], range[1]);
-      // find min-max
-      let min = values[i];
-      let max = values[i];
-
-      for (; i < j; i++) {
-        if (min > values[i]) min = values[i];
-        if (max < values[i]) max = values[i];
+      const times = data[time];
+      
+      // Find indices of the first and last displayed values with bounds checking
+      let i = d3.bisectRight(times, range[0]);
+      let j = d3.bisectRight(times, range[1]);
+      
+      // Ensure indices are within bounds
+      i = Math.max(0, Math.min(i, values.length - 1));
+      j = Math.max(i, Math.min(j, values.length));
+      
+      // If we have no data points in the range, expand to include at least one point
+      if (i >= j) {
+        if (i > 0) i = i - 1;
+        j = Math.min(i + 1, values.length);
+      }
+      
+      // Find min-max, filtering out null/undefined values
+      let min = null;
+      let max = null;
+      
+      for (let k = i; k < j; k++) {
+        const value = values[k];
+        if (value !== null && value !== undefined && !isNaN(value)) {
+          if (min === null || value < min) min = value;
+          if (max === null || value > max) max = value;
+        }
+      }
+      
+      // If we couldn't find any valid values in range, fall back to a wider search
+      if (min === null || max === null) {
+        const validValues = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+        if (validValues.length > 0) {
+          const extent = d3.extent(validValues);
+          min = min !== null ? min : extent[0];
+          max = max !== null ? max : extent[1];
+        } else {
+          // Last resort: use 0 to 1 as default range
+          min = 0;
+          max = 1;
+        }
+      }
+      
+      // Ensure min and max are different to avoid division by zero
+      if (min === max) {
+        const delta = Math.abs(min) * 0.1 || 1; // 10% padding or 1 if min is 0
+        min = min - delta;
+        max = max + delta;
       }
 
       if (item.datarange) {
         const datarange = item.datarange.split(",");
-
-        if (datarange[0] !== "") min = new Number(datarange[0]);
-        if (datarange[1] !== "") max = new Number(datarange[1]);
+        if (datarange[0] !== "") min = Number(datarange[0]);
+        if (datarange[1] !== "") max = Number(datarange[1]);
       }
 
-      // calc scale and shift
-      const diffY = d3.extent(values).reduce((a, b) => b - a); // max - min
+      // calc scale and shift for optimized data transforms
+      const allExtent = d3.extent(values.filter(v => v !== null && v !== undefined && !isNaN(v)));
+      const diffY = allExtent[1] - allExtent[0];
 
-      scaleY = diffY / (max - min);
-      translateY = min / diffY;
+      if (diffY > 0 && (max - min) > 0) {
+        scaleY = diffY / (max - min);
+        translateY = (min - allExtent[0]) / diffY;
+      }
 
       channel.y.domain([min, max]);
     }
@@ -889,8 +932,8 @@ class TimeSeriesVisualizerD3 extends React.Component {
       }
     }
 
-    this.renderXAxis();
-    this.renderYAxis();
+    // Note: renderXAxis() and renderYAxis() are now called once in setRangeWithScaling()
+    // to avoid redundant calls when processing multiple channels
     this.updateTracker(this.x(this.trackerX));
 
     // Sync playhead with new scale/domain
