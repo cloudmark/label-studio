@@ -72,11 +72,11 @@ const Model = types
       // Seek to the region's start time and emit sync event to update all synced components
       if (isFF(FF_TIMESERIES_SYNC) && self.parent.sync) {
         const regionStartTime = self.start;
-        
+
         // Update cursor position to the region's start
         self.parent.setCursor(regionStartTime);
-        
-        // Emit sync event so all synced components (Audio, GPS, Accelerometer, etc.) seek to this time
+
+        // Emit sync event so all synced components (Audio, Accelerometer, etc.) seek to this time
         const [minKey] = self.parent.keysRange;
         if (minKey !== undefined) {
           let relativeTime;

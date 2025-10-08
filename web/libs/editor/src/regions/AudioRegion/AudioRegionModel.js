@@ -103,7 +103,7 @@ export const AudioRegionModel = types
         self._ws_region.bringToFront();
         self._ws_region.scrollToRegion();
 
-        // Emit sync event to update all synced components (TimeSeries, GPS, etc.)
+        // Emit sync event to update all synced components (TimeSeries, etc.)
         if (isFF(FF_TIMESERIES_SYNC) && self.object.sync) {
           const regionStartTime = self.start;
           // Audio time is already in seconds, so just use it directly
